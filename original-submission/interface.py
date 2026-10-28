@@ -679,7 +679,9 @@ class Interface(QWidget):
             if self.demonstracao_estado == "Busca_Opcode":
                 terminou = self.Passo_Busca(operacao_visual, self.demonstracao_operacao, "Busca_DST")
                 if terminou:
-                    if self.demonstracao_operacao in self.lista_ADDR:
+                    if self.demonstracao_operacao == "LOOP":
+                        self.demonstracao_estado = "Execucao_Salto"
+                    elif self.demonstracao_operacao in self.lista_ADDR:
                         self.demonstracao_estado = "Execucao_Salto"
                     elif self.demonstracao_operacao in ["RET", "IRET", "IN", "OUT"]:
                         self.demonstracao_estado = "Decodificacao"
@@ -728,9 +730,7 @@ class Interface(QWidget):
                     self.demonstracao_passo_interno = 0
             
             elif self.demonstracao_estado == "Execucao_IN":
-                self.Passo_IN()
-                terminou = self.Passo_IN()
-                if terminou:
+                if self.Passo_IN():
                     self.demonstracao_estado = "Fim"
                     self.demonstracao_passo_interno = 0
             
@@ -757,8 +757,22 @@ class Interface(QWidget):
                     
             elif self.demonstracao_estado == "Execucao_Salto":
                     self.Passo_Salto()
-                    self.demonstracao_estado = "Fim"
-                    self.demonstracao_passo_interno = 0
+                    if self.demonstracao_operacao == "LOOP":
+                        try:
+                            cx = int(self.demonstracao_label_cx.text(), 16)
+                        except: cx = 0
+                        
+                        if cx != 0:
+                            self.salvar_configuiracao()
+                            self.demonstracao_estado = "Busca_Opcode"
+                            self.demonstracao_passo_interno = 0
+                            self.tela_barramento_dados.setText("Loop Ativo: Reiniciando ciclo...")
+                        else:
+                            self.demonstracao_estado = "Fim"
+                            self.demonstracao_passo_interno = 0
+                    else:
+                        self.demonstracao_estado = "Fim"
+                        self.demonstracao_passo_interno = 0
             
             elif self.demonstracao_estado == "Busca_Operando_SRC":
                 terminou_leitura = self.Passo_Leitura()
@@ -783,8 +797,8 @@ class Interface(QWidget):
                 if self.executar_passo_execucao():
                     if self.demonstracao_dst_str.startswith("["):
                         self.demonstracao_estado = "Escreve_Operando_DST"
-                else:
-                    self.demonstracao_estado = "Fim"
+                    else:
+                        self.demonstracao_estado = "Fim"
                 self.demonstracao_passo_interno = 0
             
             elif self.demonstracao_estado == "Escreve_Operando_DST":
@@ -843,7 +857,7 @@ class Interface(QWidget):
         if self.demonstracao_passo_interno ==0:
             self.demonstracao_label_cs.setStyleSheet(self.cor_borda_style)
             self.demonstracao_label_ip.setStyleSheet(self.cor_borda_style)
-            self.tela_barramento_endereco.setText(f"Ciclo de busca: Identificando CS e IP (para {nome_passo})")
+            self.tela_barramento_endereco.setText(f"Ciclo de busca: Identificando CS e IP para {nome_passo}")
             self.tela_barramento_endereco.setStyleSheet(self.barramento_ativo_style)
             self.tela_barramento_dados.setStyleSheet(self.barramento_inativo_style)
             self.demonstracao_passo_interno = 1
@@ -886,7 +900,7 @@ class Interface(QWidget):
             
             self.demonstracao_label_ip.setText(f"{offset_novo:04X}")
             self.registrador_ip_input.setText(f"{offset_novo:04X}")
-            self.tela_barramento_endereco.setText("CPU (Interno): Incrementa IP em {offset_incremento} bytes")
+            self.tela_barramento_endereco.setText("CPU (Interno): Incrementa IP")
             self.tela_barramento_endereco.setStyleSheet(self.barramento_ativo_style)
             self.tela_barramento_dados.setStyleSheet(self.barramento_inativo_style)        
             
@@ -895,7 +909,7 @@ class Interface(QWidget):
         return False
     
     def Passo_Decodificacao(self):
-        if self.demonstracao_passo_interno == 0:   
+        if self.demonstracao_passo_interno == 0:    
             valor_imediato = getattr(self, "demonstracao_addr_str", "0000")
             
             if self.demonstracao_operacao in self.lista_ADDR:
@@ -942,14 +956,14 @@ class Interface(QWidget):
                 self.demonstracao_dados_dst = int(self.pegar_demonstracao_label(self.demonstracao_dst_str).text(), 16)
             return True
             
-    def Passo_Leitura(self):       
+    def Passo_Leitura(self):        
         registrador_offset_label = self.pegar_demonstracao_label(self.demonstracao_src_str.strip("[]"))
         registrador_offset_nome = self.demonstracao_src_str.strip("[]")
         
         if self.demonstracao_passo_interno == 0:
             self.demonstracao_label_ds.setStyleSheet(self.cor_borda_style)
             registrador_offset_label.setStyleSheet(self.cor_borda_style)
-            self.tela_barramento_endereco.setText(f"Leitura de Dados (SRC): Identificando DS e {registrador_offset_nome} (p/ Byte Baixo)")
+            self.tela_barramento_endereco.setText(f"Leitura de ados: Identificando DS e {registrador_offset_nome} (p/ Byte Baixo)")
             self.tela_barramento_endereco.setStyleSheet(self.barramento_ativo_style)
             self.tela_barramento_dados.setStyleSheet(self.barramento_inativo_style)
             self.demonstracao_passo_interno = 1
@@ -993,7 +1007,7 @@ class Interface(QWidget):
             return False
             
         if self.demonstracao_passo_interno == 3:
-            self.demonstracao_label_ds.setStyleSheet(self.cor_borda_style)     
+            self.demonstracao_label_ds.setStyleSheet(self.cor_borda_style)      
             registrador_offset_label.setStyleSheet(self.cor_borda_style)
             self.tela_barramento_endereco.setText(f"Leitura (SRC): Identificando DS e {registrador_offset_nome}+1 (p/ Byte Alto)")
             self.tela_barramento_endereco.setStyleSheet(self.barramento_ativo_style)
@@ -1005,7 +1019,7 @@ class Interface(QWidget):
             segmento = int(self.demonstracao_label_ds.text(), 16)
             offset = int(registrador_offset_label.text(), 16) + 1
             self.demonstracao_endereco_calculado = (segmento * 16) + offset
-            calculo_str = f"Cálculo (SRC): (DS * 16) + {registrador_offset_nome}+1\n(0x{segmento:X} * 16) + 0x{offset:X} = 0x{self.demonstracao_endereco_calculado:X}"
+            calculo_str = f"Cálculo (SRC): (DS * 16) + {registrador_offset_nome}+1\n(0x{segmento:X} * 16) + {offset:X} = 0x{self.demonstracao_endereco_calculado:X}"
             self.tela_barramento_endereco.setText(f"→ {calculo_str}")
             self.tela_barramento_endereco.setStyleSheet(self.barramento_ativo_style)  
             self.tela_barramento_dados.setStyleSheet(self.barramento_inativo_style)
@@ -1233,143 +1247,120 @@ class Interface(QWidget):
         return True
     
     def Passo_Salto(self):
-        novo_ip = self.demonstracao_addr_str    
         flags = self.registrador_flag_input.text()
+        op = self.demonstracao_operacao
         
-        ip_atual_int = int(self.demonstracao_label_ip.text(), 16)
-        
-        variavel_ZF = "ZF" in flags
-        variavel_SF = "SF" in flags
-        
-        saltar = False
+        deve_saltar = False
         motivo = ""
         
-        if self.demonstracao_operacao == "JMP":
-            saltar = True
-            motivo = "Incodicional"
+        if op == "JMP": 
+            deve_saltar = True
+            motivo = "Incondicional"
         
-        elif self.demonstracao_operacao == "JE":
+        elif op == "JE":
             if "ZF" in flags:
-                saltar = True
-                motivo = "ZF ligada (Iguais)"
+                deve_saltar = True; motivo = "ZF ligada (Iguais)"
             else:
-                saltar = False
-                motivo = "ZF desligada (Diferente)"
+                deve_saltar = False; motivo = "ZF desligada (Diferente)"
             
-        elif self.demonstracao_operacao == "JNE":
+        elif op == "JNE":
             if "ZF" not in flags:
-                saltar = not True
-                motivo = "ZF desligado (Iguais)"
+                deve_saltar = True; motivo = "ZF desligado (Diferente)"
             else:
-                saltar = False
-                motivo = "ZF ligado (Diferente)"
+                deve_saltar = False; motivo = "ZF ligado (Iguais)"
                 
-        elif self.demonstracao_operacao == "JG":
+        elif op == "JG":
             variavel_SF = "SF" in flags
             variavel_ZF = "ZF" in flags
-            
             if (not variavel_SF) and (not variavel_ZF):
-                saltar = True
-                motivo = "Maior (positivo e não zero)"
+                deve_saltar = True; motivo = "Maior"
             else:
-                saltar = False
-                motivo = "Menor  ou IGUAL"
+                deve_saltar = False; motivo = "Menor ou Igual"
                 
-        elif self.demonstracao_operacao == "JGE":
+        elif op == "JGE":
             if "SF" not in flags:
-                saltar = True
-                motivo = "Maior ou igual (positivo, igual e não zero)"
+                deve_saltar = True; motivo = "Maior ou Igual"
             else:
-                saltar = False
-                motivo = "Menor"
+                deve_saltar = False; motivo = "Menor"
                 
-        elif self.demonstracao_operacao == "JL":
+        elif op == "JL":
             if "SF" in flags:
-                saltar = True
-                motivo = "Menor"
+                deve_saltar = True; motivo = "Menor"
             else:
-                saltar = False
-                motivo = "Maior ou igual"
+                deve_saltar = False; motivo = "Maior ou Igual"
                 
-        elif self.demonstracao_operacao == "JLE":
+        elif op == "JLE":
             variavel_SF = "SF" in flags
             variavel_ZF = "ZF" in flags
-            
             if variavel_SF or variavel_ZF:
-                saltar = True
-                motivo = "Menor ou igual"
+                deve_saltar = True; motivo = "Menor ou Igual"
             else:
-                saltar = False
-                motivo = "Maior"
-            
-        elif self.demonstracao_operacao == "CALL":
-            saltar = True
+                deve_saltar = False; motivo = "Maior"
+        
+        elif op == "CALL":
+            deve_saltar = True
             motivo = "Chamada de sub-rotina"
-            
             sp_atual = int(self.registrador_sp_input.text(), 16)
             ss_atual = int(self.registrador_ss_input.text(), 16)
-            
             novo_sp = (sp_atual - 2) & 0xFFFF
             ip_retorno = int(self.demonstracao_label_ip.text(), 16)
             endereco_pilha = (ss_atual * 16) + novo_sp
-            
             byte_baixo = ip_retorno & 0xFF
             byte_alto = (ip_retorno >> 8) & 0xFF
-            
             self.memoria[endereco_pilha] = byte_baixo
             self.memoria[endereco_pilha + 1] = byte_alto
-            
             sp_str = f"{novo_sp:04X}"
             self.registrador_sp_input.setText(sp_str)
             self.demonstracao_label_sp.setText(sp_str)
             self.demonstracao_label_sp.setStyleSheet(self.cor_borda_style)
             self.demonstracao_label_ss.setStyleSheet(self.cor_borda_style)
-            
-            self.log_memoria.append(f"Stack: Guardou o retorno {ip_retorno:04X} em {endereco_pilha:x}")
+            self.log_memoria.append(f"Stack: Guardou retorno {ip_retorno:04X} em {endereco_pilha:X}")
             self.tela_barramento_dados.setText(f"PUSH IP: {ip_retorno:04X}")
             
-        elif self.demonstracao_operacao == "LOOP":
+        elif op == "LOOP":
             try: 
                 cx_valor = int(self.registrador_cx_input.text(), 16)
             except:
                 cx_valor = 0
-                
+            
+            # 1. Decrementa
             cx_valor = (cx_valor - 1) & 0xFFFF
             cx_str = f"{cx_valor:04X}"
             
+            # 2. Atualiza Tela (Demo e Configuração)
             self.registrador_cx_input.setText(cx_str)
             self.demonstracao_label_cx.setText(cx_str)
             self.demonstracao_label_cx.setStyleSheet(self.cor_borda_style)
             
-            if cx_valor != 0:
-                saltar = True
-                motivo = f"CX chegou a 0"
+            # 3. Lógica de Repetição (Decrementa -> Se 0, Salta. Se não, segue)
+            if cx_valor == 0:
+                deve_saltar = True
+                motivo = f"CX atingiu 0 (SALTA)"
             else:
-                saltar = False
-                motivo = f"CX é {cx_str}"
+                deve_saltar = False
+                motivo = f"CX={cx_str} (NÃO SALTA)"
                             
-        if saltar:
-            self.registrador_ip_input.setText(novo_ip)
-            self.demonstracao_label_ip.setText(novo_ip)
+        if deve_saltar:
+            target_ip = self.demonstracao_addr_str
+            self.registrador_ip_input.setText(target_ip)
+            self.demonstracao_label_ip.setText(target_ip)
             self.demonstracao_label_ip.setStyleSheet(self.cor_borda_style)
             
-            self.tela_barramento_endereco.setText(f"Salto realizado para {novo_ip} ({motivo})")
-            self.acesso_memoria("Leitura", f"{novo_ip}", "Opcode da próxima instrução", "(salto)")
+            self.tela_barramento_endereco.setText(f"SALTO REALIZADO p/ {target_ip} ({motivo})")
+            self.tela_barramento_endereco.setStyleSheet(self.barramento_ativo_style)
+            
             try:
-                self.demonstracao_ip_inicial = int(novo_ip, 16)
-            except:
-                pass
+                self.acesso_memoria("Leitura", f"{target_ip}", "Opcode (Destino)", "(salto)")
+                self.demonstracao_ip_inicial = int(target_ip, 16)
+            except: pass
+            
+            return True # Retorna True se houve Salto
         
         else:
             ip_atual = self.demonstracao_label_ip.text()
-            self.tela_barramento_endereco.setText(f"Salto ignorado ({motivo}). Continua em {ip_atual}")
-            try:
-                self.demonstracao_ip_inicial = int(ip_atual, 16)
-            except:
-                pass
-        
-        self.tela_barramento_endereco.setStyleSheet(self.barramento_ativo_style)
-        self.tela_barramento_dados.setStyleSheet(self.barramento_inativo_style)
+            self.tela_barramento_endereco.setText(f"NÃO SALTOU: {motivo}. IP segue em {ip_atual}")
+            self.tela_barramento_endereco.setStyleSheet(self.barramento_inativo_style)
+            return False # Retorna False se não houve salto
     
     def Passo_Ret(self):
         sp_val = int(self.registrador_sp_input.text(), 16)
@@ -1543,11 +1534,11 @@ class Interface(QWidget):
         t = texto.strip()
         if t == "[SI]":
             valor = self.registrador_si_input.text()
-            return f"[{valor}]"
+            return f"{valor}"
         
         if t == "[DI]":
             valor = self.registrador_di_input.text()
-            return f"[{valor}]"
+            return f"{valor}"
         
         if t == "ADDR" and self.input_addr.text():
             return self.input_addr.text().upper()
@@ -1557,7 +1548,7 @@ class Interface(QWidget):
         
         return texto
     
-    def executar_passo_execucao(self):   
+    def executar_passo_execucao(self):    
         registrador_dst_label = self.pegar_demonstracao_label(self.demonstracao_dst_str)
         registrador_src_label = self.pegar_demonstracao_label(self.demonstracao_src_str)
         
@@ -1569,7 +1560,7 @@ class Interface(QWidget):
                 valor_dst = 0
                 
             try:
-                valor_src = int(self.demonstracao_dados_src)     
+                valor_src = int(self.demonstracao_dados_src)      
             except:
                 valor_src = 0
             
@@ -1625,6 +1616,7 @@ class Interface(QWidget):
                 self.demonstracao_label_ax.setText(str_ax)
                 self.demonstracao_label_ax.setStyleSheet(self.cor_borda_style)
                 self.salvar_input("AX", str_ax)
+                return True
                 
             elif operacao == "INC":
                 resultado = (valor_dst + 1) & 0xFFFF
@@ -1660,23 +1652,31 @@ class Interface(QWidget):
                     
                 dividendo = (valor_dx << 16) | valor_ax
                 divisor = valor_src
+                
+                self.demonstracao_label_ax.setStyleSheet(self.cor_borda_style)
+                self.demonstracao_label_dx.setStyleSheet(self.cor_borda_style)
+                
                 if divisor == 0:
                     self.tela_barramento_endereco.setText("Erro: Divisão por zero")
                     self.tela_barramento_endereco.setStyleSheet("background-color: red; color: white; font-weight: bold;")
                     return True
+                
                 quociente = dividendo // divisor
                 resto = dividendo % divisor    
                 resultado_ax = quociente & 0xFFFF
                 resultado_dx = resto & 0xFFFF
                 str_ax = f"{resultado_ax:04X}"
                 str_dx = f"{resultado_dx:04X}"
+                
                 self.tela_barramento_endereco.setText(f"Execução: {dividendo:X} / {divisor:x} -> Quociente(AX):{str_ax}, Resto(DX): {str_dx}")
                 self.demonstracao_label_ax.setText(str_ax)
                 self.demonstracao_label_ax.setStyleSheet(self.cor_borda_style)
                 self.salvar_input("AX", str_ax)
                 self.demonstracao_label_dx.setText(str_dx)
                 self.demonstracao_label_dx.setStyleSheet(self.cor_borda_style)
-                self.salvar_input("DX", str_dx)      
+                self.salvar_input("DX", str_dx)  
+                
+                return True    
                 
             elif operacao == "AND":
                 resultado = (valor_dst & valor_src) & 0xFFFF
@@ -1837,9 +1837,9 @@ class Interface(QWidget):
             self.src_c.setCurrentText("---")
             
         elif texto in self.lista_ADDR:
-            self.dst_c.setEnabled(False)   
+            self.dst_c.setEnabled(False)    
             self.dst_c.setCurrentText("---")
-            self.src_c.setEnabled(False)   
+            self.src_c.setEnabled(False)    
             self.src_c.setCurrentText("---")
             self.input_addr.setEnabled(True)
             self.input_addr.setStyleSheet("background-color: white; border: 1px solid #444")
@@ -1933,7 +1933,7 @@ class Interface(QWidget):
         self.demonstracao_label_flag.setText(texto_tela)
         self.demonstracao_label_flag.setStyleSheet(self.cor_borda_style)
         self.registrador_flag_input.setText(texto_tela)
-        return texto_tela           
+        return texto_tela            
         
     def salvar_input(self, nome_registrador, valor_hex): 
         nome = nome_registrador.strip("[]")
